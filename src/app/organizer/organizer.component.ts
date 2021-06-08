@@ -16,6 +16,7 @@ import { switchMap } from 'rxjs/operators';
 export class OrganizerComponent implements OnInit {
   form: FormGroup | undefined;
   tasks: ITask[] = [];
+  loading = false;
 
   constructor(
     public dateService: DateService,
@@ -24,38 +25,52 @@ export class OrganizerComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loading = true;
     this.dateService.date
       .pipe(switchMap(value => this.taskService.load(value)))
-      .subscribe(tasks => {
-        this.tasks = tasks;
+      .subscribe({
+        next: () => {
+          this.loading = false;
+        },
       });
-
+    this.taskService.tasks.subscribe(tasks => {
+      this.tasks = tasks;
+    });
     this.form = new FormGroup({
       title: new FormControl('', Validators.required),
     });
   }
 
   submit() {
-    const { title } = this.form?.value;
-    const task: ITask = {
-      title,
-      date: this.dateService.date.value.format(FORMAT),
-    };
-    this.taskService.create(task)
-      .subscribe(task => {
-        this.tasks.push(task);
-        this.form?.reset();
-      }, error => {
-        console.error(error);
-      });
+    if (!this.loading) {
+      this.loading = true;
+      const { title } = this.form?.value;
+      const task: ITask = {
+        title,
+        date: this.dateService.date.value.format(FORMAT),
+      };
+      this.taskService.create(task)
+        .subscribe(() => {
+          this.loading = false;
+          this.form?.reset();
+        }, error => {
+          this.loading = false;
+          console.error(error);
+        });
+    }
   }
 
   remove(task: ITask) {
+    this.loading = true;
     this.taskService.remove(task)
-      .subscribe(() => {
-        this.tasks = this.tasks.filter(t => t.id !== task.id);
-      }, error => {
-        console.error(error);
+      .subscribe({
+        next: () => {
+          this.loading = false;
+        },
+        error: err => {
+          this.loading = false;
+          console.error(err);
+        },
       });
   }
 }
